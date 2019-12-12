@@ -2,11 +2,11 @@
 #! /usr/bin/env python3
 
 from sys import argv
-from re import compile, VERBOSE
+from re import compile as reg_comp, VERBOSE
 from signature import Signature
 
 
-REGEX = compile(r""" ^
+REGEX = reg_comp(r""" ^
     #sID
     (\d{,99999}:\s)?
     #PROTO
@@ -21,7 +21,7 @@ REGEX = compile(r""" ^
     (!?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:)|any:)
     #PORT
     (!?[0-9]{,6}\s|(any)\s|!?\[[0-9]{,6}-[0-9]{,6}\]\s)
-    #PAYLOAD TODO
+    #PAYLOAD
     (\*)
         $ """, VERBOSE)
 try:
@@ -29,7 +29,7 @@ try:
 except IndexError:
     RULEPATH = 'eval.rules'
 finally:
-    print('[*] loading %s' % RULEPATH)
+    print(f"[*] loading {RULEPATH}")
 
 
 def verify_rules(ruleset):
@@ -44,31 +44,31 @@ def verify_rules(ruleset):
                     raise ValueError(' ID in use for %s' % (rule))
                 signatures.append(sig)
             else:
-                raise ValueError(' %s does not match the syntax' %(rule))
+                raise ValueError(f"{rule} does not match the syntax")
     try:
         signatures[0]
-    except IndexError as e:
+    except IndexError:
         raise ValueError('empty signature set')
     else:
         return signatures
 
 
-def loadRules(path):
+def load_rules(path):
     try:
         with open(path) as new_file:
             rules = new_file.readlines()
-    except FileNotFoundError as e:
-        raise ValueError(e)
+    except FileNotFoundError as err:
+        raise ValueError(err)
     else:
         try:
-            vrules = verify_rules([x.strip() for x in rules if len(x)>1])
-        except ValueError as e:
-            raise e
+            vrules = verify_rules([x.strip() for x in rules if len(x) > 1])
+        except ValueError as err:
+            raise err
         else:
             return vrules
 
 try:
-    RULES = loadRules(RULEPATH)
+    RULES = load_rules(RULEPATH)
     print('[*] parsed rules')
-except ValueError as e:
-    exit('[@]'+str(e))
+except ValueError as err:
+    exit(f"[@] {err}")

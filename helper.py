@@ -5,33 +5,33 @@ from re import findall
 from copy import deepcopy
 
 
-def not_eq(o, s, normal=True):
+def not_eq(other_, self_, normal=True):
     if normal:
-        if o == 'IP' and s in ['TCP','UDP']:
+        if other_ == 'IP' and self_ in ['TCP', 'UDP']:
             return False
-        else:    
-            return s == o[1:] if o[0] == '!' else s != o
+        else:
+            return self_ == other_[1:] if other_[0] == '!' else self_ != other_
     else:
-        if s == 'any':
+        if self_ == 'any':
             return False
-        split = o.split('!')
-        if '-' in o:
-            sp = split[-1].split('-')
-            min_ = sp[0][1:]
-            max_ = sp[1][:-1]
+        split = other_.split('!')
+        if '-' in other_:
+            split_split = split[-1].split('-')
+            min_ = split_split[0][1:]
+            max_ = split_split[1][:-1]
         else:
             min_ = split[-1]
             max_ = split[-1]
 
-        o = range(int(min_), int(max_)+1)
+        other_ = range(int(min_), int(max_)+1)
         try:
-            s = int(s)
-        except ValueError as e:
-            print('no meaning full compare/TODO:', s)
+            self_ = int(self_)
+        except ValueError:
+            print(f"no meaning full compare/TODO: {self_}")
             return True
         else:
-            return (len(split) == 1 and s not in o) or\
-                   (len(split) == 2 and s in o)
+            return (len(split) == 1 and self_ not in other_) or\
+                   (len(split) == 2 and self_ in other_)
 
 
 def switch_directions(signatur):

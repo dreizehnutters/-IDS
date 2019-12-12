@@ -1,22 +1,19 @@
+"""not my code"""
 # -*- coding: utf-8 -*-
 # ! /usr/bin/env python3
 
-from scapy.all import *
+from sys import argv
 from time import sleep, time
-from os import makedirs, path
+from random import choice, randint
+from netifaces import AF_INET, ifaddresses
+from scapy.all import Ether, IP, TCP, UDP, ICMP
 from importer import RULES
-import sys
-from netifaces import AF_INET, AF_INET6, AF_LINK, AF_PACKET, AF_BRIDGE
-import netifaces as ni
 
-# global variables:
-interface = sys.argv[1] if len(sys.argv) == 2 else "enp0s8"
-ip = ni.ifaddresses(interface)[AF_INET][0]['addr']
-# NOTE: The following line requires root access!
-socket = conf.L2socket(iface=interface)
-#ip = "192.168.0.4"
-default_port = 80
-max_port = 65535
+INTERFACE = argv[1] if len(argv) == 2 else "enp0s8"
+ip = ifaddresses(INTERFACE)[AF_INET][0]['addr']
+SOCKET = conf.L2socket(iface=INTERFACE)
+DEFAULT_PORT = 80
+MAX_PORT = 65535
 timestamp = str(time()).split('.')[0]
 log_file = open('logs/' + timestamp + ".log", "w")
 
@@ -26,8 +23,8 @@ def getPortsFromRange(ports):
     ports = range(int(sport[0]), int(sport[1]) + 1)
     return ports
 
-def createPackage(proto, src_port, dst_ip, dst_port):
-    package =  Ether() / IP(src=ip, dst=dst_ip)
+def create_package(proto, src_port, dst_ip, dst_port):
+    package = Ether() / IP(src=ip, dst=dst_ip)
     if proto == "ICMP":
         package = package / ICMP()
     elif proto == "TCP":
@@ -37,15 +34,16 @@ def createPackage(proto, src_port, dst_ip, dst_port):
     return package
 
 
-# function, which creates packages that do not hit any given signature
-def sendNegatives(count=10):
+def send_negatives(count=10):
+    """
+    analyse given signatures and collect necessary information:
+      - all used destination IPs
+      - all used source and destination ports
+      - ignore the key words "any", "none" and negated IPs and ports
+    NOTE: the created negative is only a possible negative due to ignored negations of IPs and ports
+    create lists of source/destination ports and destination IPs
+    """
     print("\n\nSending Negatives...")
-    # analyse given signatures and collect necessary information:
-    #           - all used destination IPs
-    #           - all used source and destination ports
-    #           - ignore the key words "any", "none" and negated IPs and ports
-    # NOTE: the created negative is only a possible negative due to ignored negations of IPs and ports
-    # create lists of source/destination ports and destination IPs
     src_ports = []
     dst_ips = []
     dst_ports = []
@@ -81,21 +79,21 @@ def sendNegatives(count=10):
     # create count "possible" negatives
     for i in range(1, count + 1):
         # choose protocol pseudo randomly
-        proto = random.choice(protocols)
-        dst_ip = random.choice(ips)
-        src_port = random.randint(1, max_port + 1)
-        dst_port = random.randint(1, max_port + 1)
+        proto = choice(protocols)
+        dst_ip = choice(ips)
+        src_port = randint(1, MAX_PORT + 1)
+        dst_port = randint(1, MAX_PORT + 1)
         # ensure that dest IP is not equal source IP
         while dst_ip == ip or dst_ip in dst_ips:
-            dst_ip = random.choice(ips)
+            dst_ip = choice(ips)
         # ensure that source port is not in given source ports
         while src_port in src_ports:
-            src_port = random.randint(1, max_port + 1)
+            src_port = randint(1, MAX_PORT + 1)
         # ensure that destination port is not in given destination ports
         while dst_port in dst_ports:
-            dst_port = random.randint(1, max_port + 1)
-        package = createPackage(proto, src_port, dst_ip, dst_port)
-        socket.send(package)
+            dst_port = randint(1, MAX_PORT + 1)
+        package = create_package(proto, src_port, dst_ip, dst_port)
+        SOCKET.send(package)
         sleep(0.5)
         print("\tSend package: {}".format(package.summary()))
         sent = i
@@ -104,7 +102,7 @@ def sendNegatives(count=10):
 
 
 # This function creates for every signature a package, which results in an alarm for the corresponding signature.
-def createPositives(signature):
+def create_positives(signature):
     # TODO: special case: negation
     # special case: bidirectional and dest IP equals own ip
     bidirect = False
@@ -115,22 +113,22 @@ def createPositives(signature):
         pkg = Ether() / IP(src=ip, dst=signature.dstIP)
     if signature.proto == "IP":
         # if protocol is IP, choose randomly a transport protocol
-        signature.proto = random.choice(["TCP", "UDP"])
+        signature.proto = choice(["TCP", "UDP"])
     # check if ports are defined as "any" or "none"
     if signature.srcPort in ["any", "none"]:
-        sport = default_port
+        sport = DEFAULT_PORT
     elif signature.srcPort.startswith("["):
         # if there is a list of ports, just pick up one port of them randomly
         ports = getPortsFromRange(signature.srcPort)
-        sport = random.choice(ports)
+        sport = choice(ports)
     elif not signature.srcPort.startswith("!"):
         sport = int(signature.srcPort)
     if signature.dstPort in ["any", "none"]:
-        dport = default_port
+        dport = DEFAULT_PORT
     elif signature.dstPort.startswith("["):
         # if there is a list of ports, just pick up one port of them randomly
         ports = getPortsFromRange(signature.dstPort)
-        dport = random.choice(ports)
+        dport = choice(ports)
     elif not signature.srcPort.startswith("!"):
         dport = int(signature.dstPort)
     if signature.proto == "TCP":
@@ -149,20 +147,20 @@ def createPositives(signature):
     else:
         print("Unknown protocol of signature: {} with proto: {}".format(signature.sID, signature.proto))
 
-def sendPositives():
+def send_positives():
     print("\n\nSending Positives...")
     for signature in RULES:
         if (signature.srcIP == ip or (signature.dir == "<>" and signature.dstIP == ip)) and not (signature.dstIP.startswith("!") or signature.srcPort.startswith("!") or signature.dstPort.startswith("!")):
-            package = createPositives(signature)
+            package = create_positives(signature)
             message = signature.sID + ': ' + signature.__str__() + ' ~> ' + package.summary() + '\n'
             print("\t{}".format(message.replace("\n", "", 1)))
-            socket.send(package)
+            SOCKET.send(package)
             sleep(0.5)
             log_file.write(message)
             log_file.flush()
     print("\n\nPositives sent.")
 
-def printMenu():
+def print_menu():
     print("*" * 40)
     print("\t\tMain Menu:")
     print("*" * 40)
@@ -175,60 +173,28 @@ def printMenu():
 def main():
     running = True
     while running:
-        selection = printMenu()
+        selection = print_menu()
         while selection not in [1, 2, 3, 4]:
-            selection = printMenu()
+            selection = print_menu()
         if selection == 1:
             if len(RULES) == 0:
                 print("Error: No rules loaded.")
             else:
-                sendPositives()
+                send_positives()
         elif selection == 2:
             selection = input("How many Negatives do you want to send (default = 10)? ")
             if len(selection) == 0:
-                sendNegatives()
+                send_negatives()
             else:
-                sendNegatives(int(selection))
+                send_negatives(int(selection))
         elif selection == 3:
             print("Insert following format [protocol] [source port] [destination IP] [destination port]")
             selection = input("")
             selection = selection.split(" ")
-            package = createPackage(selection[0], int(selection[1]), selection[2], int(selection[3]))
-            socket.send(package)
+            package = create_package(selection[0], int(selection[1]), selection[2], int(selection[3]))
+            SOCKET.send(package)
             print("Sent package: {}\n\n".format(package.summary()))
         elif selection == 4:
-            print("""\n                              . .  ,  , 
-                              |` \/ \/ \,', 
-    BBB   Y   Y EEE           ;          ` \/\,. 
-    B  B   Y Y  E            :               ` \,/ 
-    BBB     Y   EEE          |                  / 
-    B  B    Y   E            ;                 : 
-    BBB     Y   EEE         :                  ; 
-                            |      ,---.      / 
-         BBB  Y   Y EEE       :     ,'     `,-._ \ 
-         B  B  Y Y  E      ;    (   o    \   `' 
-         BBB    Y   EEE  _:      .      ,'  o ; 
-         B  B   Y   E   /,.`      `.__,'`-.__, 
-         BBB    Y   EEE \_  _               \ 
-                       ,'  / `,          `.,' 
-                 ___,'`-._ \_/ `,._        ; 
-              __;_,'      `-.`-'./ `--.____) 
-           ,-'           _,--\^-' 
-         ,:_____      ,-'     \ 
-        (,'     `--.  \;-._    ; 
-        :    Y      `-/    `,  : 
-        :    :       :     /_;' 
-        :    :       |    : 
-         \    \      :    : 
-          `-._ `-.__, \    `. 
-             \   \  `. \     `. 
-           ,-;    \---)_\ ,','/ 
-           \_ `---'--'" ,'^-;' 
-           (_`     ---'" ,-') 
-           / `--.__,. ,-'    \ 
-           )-.__,-- ||___,--' `-. 
-          /._______,|__________,'\ 
-          `--.____,'|_________,-' """)
             running = False
 
 if __name__ == '__main__':

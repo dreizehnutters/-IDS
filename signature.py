@@ -1,30 +1,31 @@
 # -*- coding: utf-8 -*-
 #! /usr/bin/env python3
 
+from scapy.all import Ether, IP, ICMP
 from helper import switch_directions, not_eq
-from scapy.all import Ether, IP, IPv6, ARP, ICMP
 
 class Signature(object):
-    def __init__(self, obj, with_payload=False):
+    """Signature"""
+    def __init__(self, obj):
         super(Signature, self).__init__()
         if isinstance(obj, Ether):
             direction = '->'
-            sID = '-1'
+            s_id = '-1'
             if IP in obj:
                 try:
                     proto = obj[2].name
-                    srcIP = str(obj[1].src)
-                    srcPort = str(obj[1].sport)
-                    dstIP = str(obj[1].dst)
-                    dstPort = str(obj[1].dport)
+                    src_ip = str(obj[1].src)
+                    src_port = str(obj[1].sport)
+                    dst_ip = str(obj[1].dst)
+                    dst_port = str(obj[1].dport)
                     payload = '*'
                 except AttributeError:
                     if ICMP in obj:
                         proto = obj[2].name
-                        srcIP = str(obj[1].src)
-                        srcPort = 'any'
-                        dstIP = str(obj[1].dst)
-                        dstPort = 'any'
+                        src_ip = str(obj[1].src)
+                        src_port = 'any'
+                        dst_ip = str(obj[1].dst)
+                        dst_port = 'any'
                         payload = '*'
                     else:
                         raise ValueError()
@@ -35,47 +36,47 @@ class Signature(object):
         elif isinstance(obj, str):
             string = obj.split(' ')
             if len(string) == 5:
-                s2 = string[1].split(':')
-                s4 = string[3].split(':')
+                src_split = string[1].split(':')
+                dst_split = string[3].split(':')
 
-                sID = ''
+                s_id = ''
                 proto = string[0]
-                srcIP = s2[0]
-                srcPort = s2[1]
+                src_ip = src_split[0]
+                src_port = src_split[1]
                 direction = string[2]
-                dstIP = s4[0]
-                dstPort = s4[1]
+                dst_ip = dst_split[0]
+                dst_port = dst_split[1]
                 payload = string[4]
-                
-            elif len(string) == 6:
-                s2 = string[2].split(':')
-                s4 = string[4].split(':')
 
-                sID = string[0].split(':')[0]
+            elif len(string) == 6:
+                src_split = string[2].split(':')
+                dst_split = string[4].split(':')
+
+                s_id = string[0].split(':')[0]
                 proto = string[1]
-                srcIP = s2[0]
-                srcPort = s2[1]
+                src_ip = src_split[0]
+                src_port = src_split[1]
                 direction = string[3]
-                dstIP = s4[0]
-                dstPort = s4[1]
+                dst_ip = dst_split[0]
+                dst_port = dst_split[1]
                 payload = string[5]
         else:
             raise ValueError(obj, 'cant be initialized')
         del obj
-        self.sID = sID
+        self.s_id = s_id
         self.proto = proto
-        self.srcIP = srcIP
-        self.srcPort = srcPort
+        self.src_ip = src_ip
+        self.src_port = src_port
         self.dir = direction
-        self.dstIP = dstIP
-        self.dstPort = dstPort
+        self.dst_ip = dst_ip
+        self.dst_port = dst_port
         self.payload = payload
 
     def __str__(self):
-        return '%s %s:%s %s %s:%s %s' % (self.proto, self.srcIP, self.srcPort, self.dir,\
-                                         self.dstIP, self.dstPort, self.payload)
+        return f"{self.proto} {self.src_ip}:{self.src_port} {self.dir} \
+                              {self.dst_ip}:{self.dst_port} {self.payload}"
     def __repr__(self):
-        return 'rule %s: %s' %( self.sID, self.__str__())
+        return f"rule {self.s_id}: {self.__str__()}"
 
     def __eq__(self, other):
         """
@@ -85,32 +86,32 @@ class Signature(object):
         if isinstance(self, other.__class__):
 
             if other.dir == '<>':
-                a, b = switch_directions(other)
-                return self.__eq__(a) or self.__eq__(b)
+                dir_a, dir_b = switch_directions(other)
+                return self.__eq__(dir_a) or self.__eq__(dir_b)
 
             # proto
             if other.proto != 'any':
                 if not_eq(other.proto, self.proto):
                     return False
 
-            # srcIP
-            if other.srcIP != 'any':
-                if not_eq(other.srcIP, self.srcIP):
+            # src_ip
+            if other.src_ip != 'any':
+                if not_eq(other.src_ip, self.src_ip):
                     return False
 
-            # srcPort
-            if other.srcPort != 'any':
-                if not_eq( other.srcPort, self.srcPort, 0):
+            # src_port
+            if other.src_port != 'any':
+                if not_eq(other.src_port, self.src_port, 0):
                     return False
 
-            # dstIP
-            if other.dstIP != 'any':
-                if not_eq(other.dstIP, self.dstIP):
+            # dst_ip
+            if other.dst_ip != 'any':
+                if not_eq(other.dst_ip, self.dst_ip):
                     return False
 
-            # dstPort
-            if other.dstPort != 'any':
-                if not_eq(other.dstPort, self.dstPort, 0):
+            # dst_port
+            if other.dst_port != 'any':
+                if not_eq(other.dst_port, self.dst_port, 0):
                     return False
 
             # payload
